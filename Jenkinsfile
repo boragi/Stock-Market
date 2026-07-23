@@ -15,9 +15,10 @@ pipeline {
     }
 
     environment {
-        APP_NAME = "stock-market"
-        DOCKER_IMAGE = "latest"
-    }
+    DOCKER_USERNAME = "gouri22"
+    IMAGE_NAME = "stock-market"
+    IMAGE_TAG = "latest"
+}
 
 
     stages {
