@@ -1,60 +1,141 @@
 pipeline {
+
     agent any
+
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: ['DEPLOY', 'REMOVE'],
+            description: 'Choose whether to deploy or remove application'
+        )
+    }
 
     tools {
         maven 'maven'
     }
 
-    stages {
-        stage('build stage') {
-            steps {
-                sh 'mvn clean package'
-            }
-            post {
-                success {
-                    echo "build success"
-                }
-                failure {
-                    echo "build failure"
-                }
-            }
-        }
-        stage('build test') {
-            steps {
-                sh 'mvn test'
-            }
-            post {
-                success {
-                    echo "test success"
-                }
-                failure {
-                    echo "test failure"
-                }
-            }
-        }
-        stage("Run the spring application") {
-            steps { 
-                sh '''
-                    echo "Stopping existing Spring Boot application if running..."
-                    if pgrep -f stock-market.jar > /dev/null; then
-                        sudo pkill -f stock-market-0.0.1-SNAPSHOT.jar
-                        echo "Application stopped."
-                    else
-                        echo "No existing application running."
-                    fi
+    environment {
+        APP_NAME = "stock-market"
+        DOCKER_IMAGE = "stocks"
+    }
 
-                    echo "Starting the Spring Boot application..."
-                    sudo java -jar target/stock-market-0.0.1-SNAPSHOT.jar > /dev/null 2>&1 &
+
+    stages {
+
+
+        stage('Checkout Code') {
+
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
+
+            steps {
+                echo "Pulling latest code from GitHub..."
+
+                git branch: 'main',
+                url: 'https://github.com/Muskan-Jamadar/voting_system.git'
+            }
+        }
+
+
+        stage('Build JAR') {
+
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
+
+            steps {
+
+                echo "Building Spring Boot Application..."
+
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
+
+        stage('Docker Build') {
+
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
+
+            steps {
+
+                echo "Building Docker Image..."
+
+                sh '''
+                docker build -t $DOCKER_IMAGE:latest .
                 '''
             }
         }
-    }
-    post {
-        success {
-            echo "pipeline success"
+
+
+        stage('Docker Login & Push') {
+
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
+
+            steps {
+
+                echo "Pushing Image to Docker Hub..."
+
+                withCredentials([
+                    usernamePassword(
+                    credentialsId: 'docker-credentials',
+                    usernameVariable: 'DOCKER_USERNAME',
+                    passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+
+                    sh '''
+                    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+                    docker push $DOCKER_IMAGE:latest
+                    '''
+                }
+            }
         }
+
+
+        stage('Deploy Application') {
+    when {
+        expression { params.ACTION == 'DEPLOY' }
+    }
+    steps {
+        sh '''
+        docker compose down
+        docker compose up --build -d
+        '''
+    }
+}
+
+stage('Remove Application') {
+    when {
+        expression { params.ACTION == 'REMOVE' }
+    }
+    steps {
+        sh '''
+        docker compose down
+        docker image prune -af
+        '''
+    }
+}
+
+    }
+
+
+    post {
+
+        success {
+            echo "Pipeline executed successfully..."
+        }
+
         failure {
-            echo "pipeline failure"
+            echo "Pipeline execution failed..."
+        }
+
+        always {
+            echo "Pipeline completed..."
         }
     }
 }
