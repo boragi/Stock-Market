@@ -1,63 +1,60 @@
 pipeline {
     agent any
 
-    parameters {
-        choice(
-            name: 'ACTION',
-            choices: ['DEPLOY', 'REMOVE'],
-            description: 'Choose whether to deploy or remove containers'
-        )
-    }
-
     tools {
         maven 'maven'
     }
 
-    environment {
-        APP_NAME = "springboot-app"
-    }
-
     stages {
-        stage('Build JAR') {
-            when {
-                expression { params.ACTION == 'DEPLOY' }
-            }
+        stage('build stage') {
             steps {
-                echo "Building Spring Boot JAR..."
                 sh 'mvn clean package'
             }
-        }
-
-        stage('Deploy Application') {
-            when {
-                expression { params.ACTION == 'DEPLOY' }
-            }
-            steps {
-                echo "Deploying Docker Containers..."
-                sh 'docker compose up --build -d'
+            post {
+                success {
+                    echo "build success"
+                }
+                failure {
+                    echo "build failure"
+                }
             }
         }
-
-        stage('Remove Application') {
-            when {
-                expression { params.ACTION == 'REMOVE' }
-            }
+        stage('build test') {
             steps {
-                echo "Stopping and Removing Containers..."
-                sh 'docker compose down'
-                sh 'docker image prune -af'
+                sh 'mvn test'
+            }
+            post {
+                success {
+                    echo "test success"
+                }
+                failure {
+                    echo "test failure"
+                }
+            }
+        }
+        stage("Run the spring application") {
+            steps { 
+                sh '''
+                    echo "Stopping existing Spring Boot application if running..."
+                    if pgrep -f spring_app_sak-0.0.1-SNAPSHOT.jar > /dev/null; then
+                        sudo pkill -f spring_app_sak-0.0.1-SNAPSHOT.jar
+                        echo "Application stopped."
+                    else
+                        echo "No existing application running."
+                    fi
+
+                    echo "Starting the Spring Boot application..."
+                    sudo java -jar target/spring_app_sak-0.0.1-SNAPSHOT.jar > /dev/null 2>&1 &
+                '''
             }
         }
     }
     post {
         success {
-            echo "Pipeline executed successfully..."
+            echo "pipeline success"
         }
         failure {
-            echo "Pipeline execution failed..."
-        }
-        always {
-            echo "Pipeline completed..."
+            echo "pipeline failure"
         }
     }
 }
