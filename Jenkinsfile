@@ -1,12 +1,11 @@
 pipeline {
-
     agent any
 
     parameters {
         choice(
             name: 'ACTION',
             choices: ['DEPLOY', 'REMOVE'],
-            description: 'Choose whether to deploy or remove application'
+            description: 'Choose whether to deploy or remove the application'
         )
     }
 
@@ -15,127 +14,101 @@ pipeline {
     }
 
     environment {
-    IMAGE_NAME = "stock"
-    IMAGE_TAG = "latest"
-}
-
+        IMAGE_NAME = "stock"
+        IMAGE_TAG = "latest"
+    }
 
     stages {
 
-
         stage('Checkout Code') {
-
             when {
                 expression { params.ACTION == 'DEPLOY' }
             }
-
             steps {
-                echo "Pulling latest code from GitHub..."
-
                 git branch: 'main',
-                url: 'https://github.com/boragi/Stock-Market.git'
+                    url: 'https://github.com/boragi/Stock-Market.git'
             }
         }
 
-
         stage('Build JAR') {
-
             when {
                 expression { params.ACTION == 'DEPLOY' }
             }
-
             steps {
-
-                echo "Building Spring Boot Application..."
-
                 sh 'mvn clean package -DskipTests'
             }
         }
 
-
-        stage('Docker Build') {
-
+        stage('Build Docker Image') {
             when {
                 expression { params.ACTION == 'DEPLOY' }
             }
-
             steps {
-
-                echo "Building Docker Image..."
-
-                sh '''
-                docker build -t $DOCKER_IMAGE:latest .
-                '''
+                sh """
+                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                """
             }
         }
 
-
         stage('Docker Login & Push') {
-
             when {
                 expression { params.ACTION == 'DEPLOY' }
             }
-
             steps {
-
-                echo "Pushing Image to Docker Hub..."
-
                 withCredentials([
                     usernamePassword(
-                    credentialsId: 'docker-credentials',
-                    usernameVariable: 'DOCKER_USERNAME',
-                    passwordVariable: 'DOCKER_PASSWORD'
+                        credentialsId: 'docker-credentials',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
                     )
                 ]) {
 
-                    sh '''
-                    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-                    docker push $DOCKER_IMAGE:latest
-                    '''
+                    sh """
+                        echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin
+
+                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} \$DOCKER_USERNAME/${IMAGE_NAME}:${IMAGE_TAG}
+
+                        docker push \$DOCKER_USERNAME/${IMAGE_NAME}:${IMAGE_TAG}
+                    """
                 }
             }
         }
 
-
         stage('Deploy Application') {
-    when {
-        expression { params.ACTION == 'DEPLOY' }
-    }
-    steps {
-        sh '''
-        docker compose down
-        docker compose up --build -d
-        '''
-    }
-}
+            when {
+                expression { params.ACTION == 'DEPLOY' }
+            }
+            steps {
+                sh '''
+                    docker compose down || true
+                    docker compose up -d --build
+                '''
+            }
+        }
 
-stage('Remove Application') {
-    when {
-        expression { params.ACTION == 'REMOVE' }
+        stage('Remove Application') {
+            when {
+                expression { params.ACTION == 'REMOVE' }
+            }
+            steps {
+                sh '''
+                    docker compose down
+                    docker image rm stock:latest || true
+                    docker image prune -f
+                '''
+            }
+        }
     }
-    steps {
-        sh '''
-        docker compose down
-        docker image prune -af
-        '''
-    }
-}
-
-    }
-
 
     post {
-
         success {
-            echo "Pipeline executed successfully..."
+            echo 'Pipeline executed successfully.'
         }
-
         failure {
-            echo "Pipeline execution failed..."
+            echo 'Pipeline execution failed.'
         }
-
         always {
-            echo "Pipeline completed..."
+            echo 'Pipeline completed.'
         }
     }
 }
