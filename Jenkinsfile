@@ -33,7 +33,7 @@ pipeline {
                 echo "Pulling latest code from GitHub..."
 
                 git branch: 'main',
-                url: 'https://github.com/Muskan-Jamadar/voting_system.git'
+                url: 'https://github.com/boragi/Stock-Market.git'
             }
         }
 
