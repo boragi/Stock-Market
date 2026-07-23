@@ -21,7 +21,7 @@ services:
       - springboot-mysql-network
 
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,18 +32,20 @@ services:
     container_name: springboot-app
     restart: always
 
-    ports:
-      - "8085:8081"
-
     depends_on:
       mysql-container:
         condition: service_healthy
 
+    ports:
+      - "8085:8081"
+
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-container:3306/stock_market?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-container:3306/stock_market?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
 
+    networks:
+      - springboot-mysql-network
 
 networks:
   springboot-mysql-network:
@@ -51,5 +53,3 @@ networks:
 
 volumes:
   mysql-data:
-
-
