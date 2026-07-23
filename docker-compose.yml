@@ -18,7 +18,7 @@ services:
       - springboot-mysql-network
 
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p1234"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -29,7 +29,7 @@ services:
     container_name: springboot-app
 
     ports:
-      - "8085:8080"
+      - "8085:8081"
 
     depends_on:
       mysql-container:
