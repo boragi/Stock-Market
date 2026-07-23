@@ -25,6 +25,7 @@ pipeline {
                 expression { params.ACTION == 'DEPLOY' }
             }
             steps {
+                echo "Checking out source code..."
                 git branch: 'main',
                     url: 'https://github.com/boragi/Stock-Market.git'
             }
@@ -35,6 +36,7 @@ pipeline {
                 expression { params.ACTION == 'DEPLOY' }
             }
             steps {
+                echo "Building Spring Boot project..."
                 sh 'mvn clean package -DskipTests'
             }
         }
@@ -44,13 +46,14 @@ pipeline {
                 expression { params.ACTION == 'DEPLOY' }
             }
             steps {
+                echo "Building Docker image..."
                 sh """
                     docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
                 """
             }
         }
 
-        stage('Docker Login & Push') {
+        stage('Push Image to Docker Hub') {
             when {
                 expression { params.ACTION == 'DEPLOY' }
             }
@@ -79,9 +82,16 @@ pipeline {
                 expression { params.ACTION == 'DEPLOY' }
             }
             steps {
+                echo "Deploying application..."
+
                 sh '''
                     docker compose down || true
+
+                    docker image prune -f
+
                     docker compose up -d --build
+
+                    docker ps
                 '''
             }
         }
@@ -91,24 +101,36 @@ pipeline {
                 expression { params.ACTION == 'REMOVE' }
             }
             steps {
+                echo "Removing application..."
+
                 sh '''
-                    docker compose down
+                    docker compose down || true
+
+                    docker rm -f springboot-app mysql-container || true
+
                     docker image rm stock:latest || true
-                    docker image prune -f
+
+                    docker image prune -af
+
+                    docker volume prune -f
                 '''
             }
         }
     }
 
     post {
+
         success {
-            echo 'Pipeline executed successfully.'
+            echo "Pipeline executed successfully."
         }
+
         failure {
-            echo 'Pipeline execution failed.'
+            echo "Pipeline execution failed."
         }
+
         always {
-            echo 'Pipeline completed.'
+            sh 'docker ps -a || true'
+            echo "Pipeline completed."
         }
     }
 }
