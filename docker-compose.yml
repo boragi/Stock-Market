@@ -1,8 +1,11 @@
+version: "3.8"
+
 services:
 
   mysql-container:
     image: mysql:8.0
     container_name: mysql-container
+    restart: always
 
     environment:
       MYSQL_ROOT_PASSWORD: root
@@ -12,7 +15,7 @@ services:
       - "3306:3306"
 
     volumes:
-      - ./mysql-data:/var/lib/mysql
+      - mysql-data:/var/lib/mysql
 
     networks:
       - springboot-mysql-network
@@ -27,6 +30,7 @@ services:
   springboot-app:
     build: .
     container_name: springboot-app
+    restart: always
 
     ports:
       - "8085:8081"
@@ -36,7 +40,7 @@ services:
         condition: service_healthy
 
     environment:
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-container:3306/myapplication?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql-container:3306/stock_market?createDatabaseIfNotExist=true
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: root
 
@@ -45,4 +49,7 @@ services:
 
 networks:
   springboot-mysql-network:
-    name: springboot-mysql-network
+    driver: bridge
+
+volumes:
+  mysql-data:
