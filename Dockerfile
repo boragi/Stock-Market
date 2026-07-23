@@ -2,8 +2,8 @@ FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
-COPY target/stock-market.jar app.jar
+COPY target/stock-market-0.0.1-SNAPSHOT.jar app.jar
 
-EXPOSE 8084
+EXPOSE 8081
 
 ENTRYPOINT ["java","-jar","app.jar"]
