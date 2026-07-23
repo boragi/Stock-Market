@@ -15,8 +15,7 @@ pipeline {
     }
 
     environment {
-    DOCKER_USERNAME = "gouri22"
-    IMAGE_NAME = "stock-market"
+    IMAGE_NAME = "stock"
     IMAGE_TAG = "latest"
 }
 
