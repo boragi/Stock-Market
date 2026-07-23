@@ -2,7 +2,7 @@ FROM eclipse-temurin:17-jre
 
 WORKDIR /app
 
-COPY target/NammaStocks.jar app.jar
+COPY target/stock-market.jar app.jar
 
 EXPOSE 8084
 
