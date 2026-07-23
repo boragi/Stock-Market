@@ -16,7 +16,7 @@ pipeline {
 
     environment {
         APP_NAME = "stock-market"
-        DOCKER_IMAGE = "stocks"
+        DOCKER_IMAGE = "latest"
     }
 
 
