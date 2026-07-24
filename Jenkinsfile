@@ -22,7 +22,7 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME = "YOUR_DOCKER_USERNAME/YOUR_APP_NAME"
+        IMAGE_NAME = "gouri22/stock-market"
         BUILD_TAG = "${BUILD_NUMBER}"
     }
 
@@ -33,7 +33,7 @@ pipeline {
                 deleteDir()
 
                 git branch: 'main',
-                    url: 'YOUR_GITHUB_URL'
+                    url: 'https://github.com/boragi/Stock-Market.git'
             }
         }
 
