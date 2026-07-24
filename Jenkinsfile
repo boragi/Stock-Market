@@ -84,9 +84,7 @@ pipeline {
             steps {
 
                 sh '''
-                kubectl apply -f kubernetes/namespace.yaml
-                kubectl apply -f kubernetes/deployment.yaml
-                kubectl apply -f kubernetes/service.yaml
+                kubectl apply -f kubernetes/k8s.yaml
                 '''
 
             }
@@ -100,10 +98,7 @@ pipeline {
             steps {
 
                 sh '''
-                kubectl apply -f kubernetes/mysql-pv.yaml
-                kubectl apply -f kubernetes/mysql-pvc.yaml
-                kubectl apply -f kubernetes/mysql-statefulset.yaml
-                kubectl apply -f kubernetes/mysql-service.yaml
+                kubectl apply -f kubernetes/k8s.yaml
                 '''
 
             }
