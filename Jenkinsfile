@@ -9,6 +9,21 @@ pipeline {
     }
 
 
+    parameters {
+
+        choice(
+            name: 'ACTION',
+            choices: [
+                'Build',
+                'Deploy',
+                'Remove'
+            ],
+            description: 'Select pipeline action'
+        )
+
+    }
+
+
     environment {
 
         IMAGE_NAME = "gouri22/stock-market"
@@ -17,7 +32,9 @@ pipeline {
     }
 
 
+
     stages {
+
 
 
         stage('Checkout Source') {
@@ -32,34 +49,49 @@ pipeline {
                 )
 
             }
+
         }
 
 
 
-        stage('Verify Project Files') {
+
+
+        stage('Check Files') {
 
             steps {
 
                 sh '''
 
-                echo "Checking Project Structure"
-
-                pwd
+                echo "Checking project files"
 
                 ls -la
 
-                echo "Checking Kubernetes Files"
+
+                echo "Checking Kubernetes files"
 
                 ls -la kubernetes
+
 
                 '''
 
             }
+
         }
 
 
 
-        stage('Build Spring Boot Application') {
+
+
+        stage('Build Application') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'Build'
+                }
+
+            }
+
 
             steps {
 
@@ -69,17 +101,27 @@ pipeline {
 
                 mvn clean package -DskipTests
 
-                ls -la target
 
                 '''
 
             }
+
         }
 
 
 
 
+
         stage('Build Docker Image') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'Build'
+                }
+
+            }
+
 
             steps {
 
@@ -87,12 +129,15 @@ pipeline {
 
                 echo "Building Docker Image"
 
+
                 docker build \
                 -t ${IMAGE_NAME}:${IMAGE_TAG} .
+
 
                 '''
 
             }
+
         }
 
 
@@ -100,6 +145,15 @@ pipeline {
 
 
         stage('Push Docker Image') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'Build'
+                }
+
+            }
+
 
             steps {
 
@@ -117,24 +171,13 @@ pipeline {
 
                     sh '''
 
-                    echo "Docker Login"
-
-
                     echo $DOCKER_PASS | docker login \
                     -u $DOCKER_USER \
                     --password-stdin
 
 
-
-                    echo "Tagging Image"
-
-
                     docker tag ${IMAGE_NAME}:${IMAGE_TAG} \
                     ${IMAGE_NAME}:latest
-
-
-
-                    echo "Pushing Images"
 
 
 
@@ -145,6 +188,7 @@ pipeline {
 
 
                     '''
+
 
                 }
 
@@ -158,27 +202,32 @@ pipeline {
 
         stage('Deploy Kubernetes') {
 
-            steps {
+            when {
 
+                expression {
+                    params.ACTION == 'Deploy'
+                }
+
+            }
+
+
+            steps {
 
                 sh '''
 
-                echo "Deploying Kubernetes Resources"
-
+                echo "Deploying Application and Database"
 
 
                 kubectl apply -f kubernetes/k8s-deployment.yaml
 
 
 
-                echo "Kubernetes Resources Created"
-
+                echo "Checking Kubernetes Status"
 
 
                 kubectl get pods
 
                 kubectl get svc
-
 
 
                 '''
@@ -191,20 +240,31 @@ pipeline {
 
 
 
-        stage('Update Application Image') {
+        stage('Remove Kubernetes') {
+
+            when {
+
+                expression {
+                    params.ACTION == 'Remove'
+                }
+
+            }
+
 
             steps {
 
 
                 sh '''
 
-                echo "Updating Application Image"
+                echo "Removing Application and Database"
+
+
+                kubectl delete -f kubernetes/k8s-deployment.yaml \
+                --ignore-not-found=true
 
 
 
-                kubectl set image deployment/stock-market-app \
-                stock-market-app=${IMAGE_NAME}:${IMAGE_TAG} || true
-
+                echo "Resources Removed"
 
 
                 '''
@@ -219,33 +279,29 @@ pipeline {
 
         stage('Verify Deployment') {
 
-            steps {
+            when {
 
+                expression {
+                    params.ACTION == 'Deploy'
+                }
+
+            }
+
+
+            steps {
 
                 sh '''
 
-                echo "Checking Pods"
+                echo "Deployment Status"
 
+
+                kubectl get deployments
 
 
                 kubectl get pods
 
 
-
-                echo "Checking Services"
-
-
-
                 kubectl get svc
-
-
-
-                echo "Checking Deployment Status"
-
-
-
-                kubectl get deployments
-
 
 
                 '''
@@ -264,19 +320,19 @@ pipeline {
 
         success {
 
-            echo "================================="
-            echo " CI/CD Pipeline Completed "
-            echo "================================="
+            echo "================================"
+            echo " Pipeline Completed Successfully "
+            echo "================================"
 
         }
 
 
         failure {
 
-            echo "================================="
+            echo "================================"
             echo " Pipeline Failed "
-            echo " Check Jenkins Console Logs "
-            echo "================================="
+            echo " Check Jenkins Logs "
+            echo "================================"
 
         }
 
@@ -286,7 +342,6 @@ pipeline {
             cleanWs()
 
         }
-
 
     }
 
