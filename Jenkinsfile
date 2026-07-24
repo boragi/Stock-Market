@@ -1,136 +1,97 @@
 pipeline {
     agent any
 
-    parameters {
-        choice(
-            name: 'ACTION',
-            choices: ['DEPLOY', 'REMOVE'],
-            description: 'Choose whether to deploy or remove the application'
-        )
-    }
-
     tools {
-        maven 'maven'
+        jdk 'JDK21'
+        maven 'Maven3'
     }
 
     environment {
-        IMAGE_NAME = "stock"
-        IMAGE_TAG = "latest"
+        IMAGE_NAME = "YOUR_DOCKER_USERNAME/YOUR_APP_NAME"
+        BUILD_TAG = "${BUILD_NUMBER}"
     }
 
     stages {
 
-        stage('Checkout Code') {
-            when {
-                expression { params.ACTION == 'DEPLOY' }
-            }
+        stage('Prepare Build') {
             steps {
-                echo "Checking out source code..."
+                echo "Preparing Build..."
+                deleteDir()
+
                 git branch: 'main',
-                    url: 'https://github.com/boragi/Stock-Market.git'
+                    url: 'YOUR_GITHUB_URL'
             }
         }
 
-        stage('Build JAR') {
-            when {
-                expression { params.ACTION == 'DEPLOY' }
-            }
+        stage('Build Application') {
             steps {
-                echo "Building Spring Boot project..."
                 sh 'mvn clean package -DskipTests'
             }
         }
 
         stage('Build Docker Image') {
-            when {
-                expression { params.ACTION == 'DEPLOY' }
-            }
             steps {
-                echo "Building Docker image..."
                 sh """
-                    docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                docker build -t ${IMAGE_NAME}:${BUILD_TAG} .
                 """
             }
         }
 
-        stage('Push Image to Docker Hub') {
-            when {
-                expression { params.ACTION == 'DEPLOY' }
-            }
+        stage('Login to Docker Hub') {
             steps {
                 withCredentials([
                     usernamePassword(
-                        credentialsId: 'docker-credentials',
-                        usernameVariable: 'DOCKER_USERNAME',
-                        passwordVariable: 'DOCKER_PASSWORD'
+                        credentialsId: 'dockerhub',
+                        usernameVariable: 'DOCKER_USER',
+                        passwordVariable: 'DOCKER_PASS'
                     )
                 ]) {
-
                     sh """
-                        echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin
-
-                        docker tag ${IMAGE_NAME}:${IMAGE_TAG} \$DOCKER_USERNAME/${IMAGE_NAME}:${IMAGE_TAG}
-
-                        docker push \$DOCKER_USERNAME/${IMAGE_NAME}:${IMAGE_TAG}
+                    echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
                     """
                 }
             }
         }
 
-        stage('Deploy Application') {
-            when {
-                expression { params.ACTION == 'DEPLOY' }
-            }
+        stage('Change Tag Name') {
             steps {
-                echo "Deploying application..."
-
-                sh '''
-                    docker compose down || true
-
-                    docker image prune -f
-
-                    docker compose up -d --build
-
-                    docker ps
-                '''
+                sh """
+                docker tag ${IMAGE_NAME}:${BUILD_TAG} ${IMAGE_NAME}:latest
+                """
             }
         }
 
-        stage('Remove Application') {
-            when {
-                expression { params.ACTION == 'REMOVE' }
-            }
+        stage('Push Image to Docker Hub') {
             steps {
-                echo "Removing application..."
+                sh """
+                docker push ${IMAGE_NAME}:${BUILD_TAG}
+                docker push ${IMAGE_NAME}:latest
+                """
+            }
+        }
 
-                sh '''
-                    docker compose down || true
-
-                    docker rm -f springboot-app mysql-container || true
-
-                    docker image rm stock:latest || true
-
-                    docker image prune -af
-
-                    docker volume prune -f
-                '''
+        stage('Clean System') {
+            steps {
+                sh """
+                docker rmi ${IMAGE_NAME}:${BUILD_TAG} || true
+                docker rmi ${IMAGE_NAME}:latest || true
+                docker image prune -f
+                """
             }
         }
     }
 
     post {
-
         success {
-            echo "Pipeline executed successfully."
+            echo "Docker Image Successfully Uploaded."
         }
 
         failure {
-            echo "Pipeline execution failed."
+            echo "Pipeline Failed."
         }
 
         always {
-            sh 'docker ps -a || true'
-            echo "Pipeline completed."
+            cleanWs()
         }
     }
 }
