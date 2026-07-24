@@ -9,29 +9,12 @@ pipeline {
     }
 
 
-    parameters {
-
-        choice(
-            name: 'ACTION',
-            choices: [
-                'Build',
-                'Deploy Application',
-                'Deploy Database',
-                'Remove Application',
-                'Remove Database'
-            ],
-            description: 'Select Pipeline Action'
-        )
-    }
-
-
     environment {
 
         IMAGE_NAME = "gouri22/stock-market"
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        BUILD_TAG = "${BUILD_NUMBER}"
 
     }
-
 
 
     stages {
@@ -44,24 +27,13 @@ pipeline {
                 deleteDir()
 
                 git branch: 'main',
-                url: 'https://github.com/boragi/Stock-Market.git'
+                    url: 'https://github.com/boragi/Stock-Market.git'
 
             }
         }
 
 
-
-
         stage('Build Spring Boot Application') {
-
-            when {
-
-                expression {
-                    params.ACTION == 'Build'
-                }
-
-            }
-
 
             steps {
 
@@ -70,40 +42,28 @@ pipeline {
                 '''
 
             }
+        }
 
+
+        stage('Build Docker Image') {
+
+            steps {
+
+                sh """
+
+                    docker build \
+                    -t ${IMAGE_NAME}:${BUILD_TAG} .
+
+                """
+
+            }
         }
 
 
 
-
-
-        stage('Build & Push Docker Image') {
-
-
-            when {
-
-                expression {
-                    params.ACTION == 'Build'
-                }
-
-            }
-
+        stage('Login & Push Docker Image') {
 
             steps {
-
-
-                sh '''
-
-                docker build \
-                -t ${IMAGE_NAME}:${IMAGE_TAG} .
-
-
-                docker tag \
-                ${IMAGE_NAME}:${IMAGE_TAG} \
-                ${IMAGE_NAME}:latest
-
-                '''
-
 
 
                 withCredentials([
@@ -123,88 +83,66 @@ pipeline {
                     -u $DOCKER_USER \
                     --password-stdin
 
-
-                    docker push ${IMAGE_NAME}:${IMAGE_TAG}
-
-                    docker push ${IMAGE_NAME}:latest
-
-
                     '''
 
                 }
 
 
 
-                sh '''
+                sh """
 
-                docker logout
+                    docker tag ${IMAGE_NAME}:${BUILD_TAG} ${IMAGE_NAME}:latest
 
-                docker image prune -f
 
-                '''
+                    docker push ${IMAGE_NAME}:${BUILD_TAG}
+
+                    docker push ${IMAGE_NAME}:latest
+
+
+                    docker rmi ${IMAGE_NAME}:${BUILD_TAG} || true
+
+                    docker rmi ${IMAGE_NAME}:latest || true
+
+
+                    docker image prune -f
+
+                """
 
             }
 
         }
-
 
 
 
 
         stage('Deploy Database') {
 
-
-            when {
-
-                expression {
-                    params.ACTION == 'Deploy Database'
-                }
-
-            }
-
-
             steps {
-
 
                 sh '''
 
-                kubectl apply \
-                -f kubernetes/database.yaml
+                    kubectl apply -f kubernetes/mysql-deployment.yaml
+
+                    kubectl apply -f kubernetes/mysql-service.yaml
 
                 '''
 
             }
 
         }
-
 
 
 
 
         stage('Deploy Application') {
 
-
-            when {
-
-                expression {
-                    params.ACTION == 'Deploy Application'
-                }
-
-            }
-
-
             steps {
-
 
                 sh '''
 
-                kubectl apply \
-                -f kubernetes/deployment.yaml
+                    kubectl apply -f kubernetes/app-deployment.yaml
 
-
-                kubectl apply \
-                -f kubernetes/service.yaml
-
+                    kubectl apply -f kubernetes/app-service.yaml
 
                 '''
 
@@ -215,76 +153,30 @@ pipeline {
 
 
 
-
-        stage('Remove Application') {
-
-
-            when {
-
-                expression {
-                    params.ACTION == 'Remove Application'
-                }
-
-            }
-
+        stage('Verify Deployment') {
 
             steps {
 
 
                 sh '''
 
-                kubectl delete \
-                -f kubernetes/deployment.yaml \
-                --ignore-not-found=true
+                    echo "Checking Kubernetes Pods..."
+
+                    kubectl get pods
 
 
-                kubectl delete \
-                -f kubernetes/service.yaml \
-                --ignore-not-found=true
+                    echo "Checking Services..."
 
-
-                '''
-
-            }
-
-        }
-
-
-
-
-
-        stage('Remove Database') {
-
-
-            when {
-
-                expression {
-                    params.ACTION == 'Remove Database'
-                }
-
-            }
-
-
-            steps {
-
-
-                sh '''
-
-                kubectl delete \
-                -f kubernetes/database.yaml \
-                --ignore-not-found=true
-
+                    kubectl get svc
 
                 '''
 
             }
 
         }
-
 
 
     }
-
 
 
 
@@ -293,18 +185,16 @@ pipeline {
 
         success {
 
-            echo "Pipeline executed successfully."
+            echo "CI/CD Pipeline completed successfully."
 
         }
-
 
 
         failure {
 
-            echo "Pipeline execution failed."
+            echo "Pipeline failed. Check logs."
 
         }
-
 
 
         always {
@@ -315,6 +205,5 @@ pipeline {
 
 
     }
-
 
 }
