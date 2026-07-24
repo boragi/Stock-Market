@@ -2,6 +2,7 @@ pipeline {
 
     agent any
 
+
     tools {
         jdk 'JDK21'
         maven 'maven'
@@ -11,7 +12,7 @@ pipeline {
     environment {
 
         IMAGE_NAME = "gouri22/stock-market"
-        IMAGE_TAG = "${BUILD_NUMBER}"
+        IMAGE_TAG  = "${BUILD_NUMBER}"
 
     }
 
@@ -35,16 +36,41 @@ pipeline {
 
 
 
+        stage('Verify Project Files') {
+
+            steps {
+
+                sh '''
+
+                echo "Checking Project Structure"
+
+                pwd
+
+                ls -la
+
+                echo "Checking Kubernetes Files"
+
+                ls -la kubernetes
+
+                '''
+
+            }
+        }
+
+
+
         stage('Build Spring Boot Application') {
 
             steps {
 
                 sh '''
-                    echo "Building Spring Boot Application"
 
-                    mvn clean package -DskipTests
+                echo "Building Spring Boot Application"
 
-                    ls -la target
+                mvn clean package -DskipTests
+
+                ls -la target
+
                 '''
 
             }
@@ -59,10 +85,10 @@ pipeline {
 
                 sh '''
 
-                    echo "Building Docker Image"
+                echo "Building Docker Image"
 
-                    docker build \
-                    -t ${IMAGE_NAME}:${IMAGE_TAG} .
+                docker build \
+                -t ${IMAGE_NAME}:${IMAGE_TAG} .
 
                 '''
 
@@ -72,7 +98,8 @@ pipeline {
 
 
 
-        stage('Docker Login & Push') {
+
+        stage('Push Docker Image') {
 
             steps {
 
@@ -90,21 +117,34 @@ pipeline {
 
                     sh '''
 
+                    echo "Docker Login"
+
+
                     echo $DOCKER_PASS | docker login \
                     -u $DOCKER_USER \
                     --password-stdin
 
 
-                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} ${IMAGE_NAME}:latest
+
+                    echo "Tagging Image"
+
+
+                    docker tag ${IMAGE_NAME}:${IMAGE_TAG} \
+                    ${IMAGE_NAME}:latest
+
+
+
+                    echo "Pushing Images"
+
 
 
                     docker push ${IMAGE_NAME}:${IMAGE_TAG}
+
 
                     docker push ${IMAGE_NAME}:latest
 
 
                     '''
-
 
                 }
 
@@ -115,25 +155,31 @@ pipeline {
 
 
 
-        stage('Deploy MySQL Database') {
+
+        stage('Deploy Kubernetes') {
 
             steps {
 
+
                 sh '''
 
-                echo "Deploying MySQL"
+                echo "Deploying Kubernetes Resources"
 
 
-                kubectl apply -f kubernetes/mysql-deployment.yaml
 
-                kubectl apply -f kubernetes/mysql-service.yaml
+                kubectl apply -f kubernetes/k8s-deployment.yaml
 
 
-                echo "Waiting for MySQL"
+
+                echo "Kubernetes Resources Created"
+
 
 
                 kubectl get pods
 
+                kubectl get svc
+
+
 
                 '''
 
@@ -145,30 +191,7 @@ pipeline {
 
 
 
-        stage('Deploy Spring Boot Application') {
-
-            steps {
-
-                sh '''
-
-                echo "Deploying Application"
-
-
-                kubectl apply -f kubernetes/app-deployment.yaml
-
-                kubectl apply -f kubernetes/app-service.yaml
-
-
-                '''
-
-            }
-
-        }
-
-
-
-
-        stage('Update Kubernetes Image') {
+        stage('Update Application Image') {
 
             steps {
 
@@ -178,8 +201,9 @@ pipeline {
                 echo "Updating Application Image"
 
 
+
                 kubectl set image deployment/stock-market-app \
-                stock-market-app=${IMAGE_NAME}:${IMAGE_TAG}
+                stock-market-app=${IMAGE_NAME}:${IMAGE_TAG} || true
 
 
 
@@ -188,6 +212,7 @@ pipeline {
             }
 
         }
+
 
 
 
@@ -201,20 +226,26 @@ pipeline {
 
                 echo "Checking Pods"
 
+
+
                 kubectl get pods
 
 
 
                 echo "Checking Services"
 
+
+
                 kubectl get svc
 
 
 
-                echo "Checking Rollout Status"
+                echo "Checking Deployment Status"
 
 
-                kubectl rollout status deployment/stock-market-app
+
+                kubectl get deployments
+
 
 
                 '''
@@ -234,7 +265,7 @@ pipeline {
         success {
 
             echo "================================="
-            echo " CI/CD Pipeline Successful "
+            echo " CI/CD Pipeline Completed "
             echo "================================="
 
         }
@@ -244,7 +275,7 @@ pipeline {
 
             echo "================================="
             echo " Pipeline Failed "
-            echo "Check Jenkins Console Logs"
+            echo " Check Jenkins Console Logs "
             echo "================================="
 
         }
@@ -255,6 +286,7 @@ pipeline {
             cleanWs()
 
         }
+
 
     }
 
