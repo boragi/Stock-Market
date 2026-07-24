@@ -1,9 +1,24 @@
 pipeline {
+
     agent any
 
     tools {
         jdk 'JDK21'
         maven 'Maven3'
+    }
+
+    parameters {
+        choice(
+            name: 'ACTION',
+            choices: [
+                'Build',
+                'Deploy Application',
+                'Deploy Database',
+                'Remove Application',
+                'Remove Database'
+            ],
+            description: 'Select the action to perform'
+        )
     }
 
     environment {
@@ -13,9 +28,8 @@ pipeline {
 
     stages {
 
-        stage('Prepare Build') {
+        stage('Checkout Source') {
             steps {
-                echo "Preparing Build..."
                 deleteDir()
 
                 git branch: 'main',
@@ -23,22 +37,19 @@ pipeline {
             }
         }
 
-        stage('Build Application') {
-            steps {
-                sh 'mvn clean package -DskipTests'
+        stage('Build & Push Docker Image') {
+            when {
+                expression { params.ACTION == 'Build' }
             }
-        }
 
-        stage('Build Docker Image') {
             steps {
+
+                sh 'mvn clean package -DskipTests'
+
                 sh """
                 docker build -t ${IMAGE_NAME}:${BUILD_TAG} .
                 """
-            }
-        }
 
-        stage('Login to Docker Hub') {
-            steps {
                 withCredentials([
                     usernamePassword(
                         credentialsId: 'dockerhub',
@@ -46,52 +57,105 @@ pipeline {
                         passwordVariable: 'DOCKER_PASS'
                     )
                 ]) {
+
                     sh """
                     echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
                     """
-                }
-            }
-        }
 
-        stage('Change Tag Name') {
-            steps {
+                }
+
                 sh """
                 docker tag ${IMAGE_NAME}:${BUILD_TAG} ${IMAGE_NAME}:latest
-                """
-            }
-        }
-
-        stage('Push Image to Docker Hub') {
-            steps {
-                sh """
                 docker push ${IMAGE_NAME}:${BUILD_TAG}
                 docker push ${IMAGE_NAME}:latest
-                """
-            }
-        }
-
-        stage('Clean System') {
-            steps {
-                sh """
                 docker rmi ${IMAGE_NAME}:${BUILD_TAG} || true
                 docker rmi ${IMAGE_NAME}:latest || true
                 docker image prune -f
                 """
+
             }
         }
+
+        stage('Deploy Application') {
+            when {
+                expression { params.ACTION == 'Deploy Application' }
+            }
+
+            steps {
+
+                sh '''
+                kubectl apply -f kubernetes/namespace.yaml
+                kubectl apply -f kubernetes/deployment.yaml
+                kubectl apply -f kubernetes/service.yaml
+                '''
+
+            }
+        }
+
+        stage('Deploy Database') {
+            when {
+                expression { params.ACTION == 'Deploy Database' }
+            }
+
+            steps {
+
+                sh '''
+                kubectl apply -f kubernetes/mysql-pv.yaml
+                kubectl apply -f kubernetes/mysql-pvc.yaml
+                kubectl apply -f kubernetes/mysql-statefulset.yaml
+                kubectl apply -f kubernetes/mysql-service.yaml
+                '''
+
+            }
+        }
+
+        stage('Remove Application') {
+            when {
+                expression { params.ACTION == 'Remove Application' }
+            }
+
+            steps {
+
+                sh '''
+                kubectl delete -f kubernetes/service.yaml --ignore-not-found=true
+                kubectl delete -f kubernetes/deployment.yaml --ignore-not-found=true
+                '''
+
+            }
+        }
+
+        stage('Remove Database') {
+            when {
+                expression { params.ACTION == 'Remove Database' }
+            }
+
+            steps {
+
+                sh '''
+                kubectl delete -f kubernetes/mysql-service.yaml --ignore-not-found=true
+                kubectl delete -f kubernetes/mysql-statefulset.yaml --ignore-not-found=true
+                kubectl delete -f kubernetes/mysql-pvc.yaml --ignore-not-found=true
+                kubectl delete -f kubernetes/mysql-pv.yaml --ignore-not-found=true
+                '''
+
+            }
+        }
+
     }
 
     post {
+
         success {
-            echo "Docker Image Successfully Uploaded."
+            echo "Pipeline executed successfully."
         }
 
         failure {
-            echo "Pipeline Failed."
+            echo "Pipeline execution failed."
         }
 
         always {
             cleanWs()
         }
+
     }
 }
