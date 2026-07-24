@@ -84,7 +84,7 @@ pipeline {
             steps {
 
                 sh '''
-                kubectl apply -f kubernetes/k8s.yaml
+                kubectl apply -f kubernetes/deployment.yaml
                 '''
 
             }
@@ -98,7 +98,7 @@ pipeline {
             steps {
 
                 sh '''
-                kubectl apply -f kubernetes/k8s.yaml
+                kubectl apply -f kubernetes/deployment.yaml
                 '''
 
             }
