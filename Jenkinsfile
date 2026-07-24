@@ -47,7 +47,7 @@ pipeline {
                 sh 'mvn clean package -DskipTests'
 
                 sh """
-                docker build -t ${IMAGE_NAME}:${BUILD_TAG} .
+                    docker build -t ${IMAGE_NAME}:${BUILD_TAG} .
                 """
 
                 withCredentials([
@@ -59,20 +59,22 @@ pipeline {
                 ]) {
 
                     sh """
-                    echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
+                        echo \$DOCKER_PASS | docker login -u \$DOCKER_USER --password-stdin
                     """
 
                 }
 
                 sh """
-                docker tag ${IMAGE_NAME}:${BUILD_TAG} ${IMAGE_NAME}:latest
-                docker push ${IMAGE_NAME}:${BUILD_TAG}
-                docker push ${IMAGE_NAME}:latest
-                docker rmi ${IMAGE_NAME}:${BUILD_TAG} || true
-                docker rmi ${IMAGE_NAME}:latest || true
-                docker image prune -f
-                """
+                    docker tag ${IMAGE_NAME}:${BUILD_TAG} ${IMAGE_NAME}:latest
 
+                    docker push ${IMAGE_NAME}:${BUILD_TAG}
+                    docker push ${IMAGE_NAME}:latest
+
+                    docker rmi ${IMAGE_NAME}:${BUILD_TAG} || true
+                    docker rmi ${IMAGE_NAME}:latest || true
+
+                    docker image prune -f
+                """
             }
         }
 
@@ -82,11 +84,9 @@ pipeline {
             }
 
             steps {
-
                 sh '''
-                kubectl apply -f kubernetes/deployment.yaml
+                    kubectl apply -f kubernetes/k8s-deployment.yaml
                 '''
-
             }
         }
 
@@ -96,11 +96,9 @@ pipeline {
             }
 
             steps {
-
                 sh '''
-                kubectl apply -f kubernetes/deployment.yaml
+                    kubectl apply -f kubernetes/k8s-deployment.yaml
                 '''
-
             }
         }
 
@@ -110,12 +108,9 @@ pipeline {
             }
 
             steps {
-
                 sh '''
-                kubectl delete -f kubernetes/service.yaml --ignore-not-found=true
-                kubectl delete -f kubernetes/deployment.yaml --ignore-not-found=true
+                    kubectl delete -f kubernetes/k8s-deployment.yaml --ignore-not-found=true
                 '''
-
             }
         }
 
@@ -125,14 +120,9 @@ pipeline {
             }
 
             steps {
-
                 sh '''
-                kubectl delete -f kubernetes/mysql-service.yaml --ignore-not-found=true
-                kubectl delete -f kubernetes/mysql-statefulset.yaml --ignore-not-found=true
-                kubectl delete -f kubernetes/mysql-pvc.yaml --ignore-not-found=true
-                kubectl delete -f kubernetes/mysql-pv.yaml --ignore-not-found=true
+                    kubectl delete -f kubernetes/k8s-deployment.yaml --ignore-not-found=true
                 '''
-
             }
         }
 
